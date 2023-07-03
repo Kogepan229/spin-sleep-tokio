@@ -1,7 +1,8 @@
 # spin_sleep_tokio
 
 This is a fork of spin_sleep.
-`std::thread::sleep` replaced by `tokio::time::sleep`
+
+`std::thread::sleep` replaced by `tokio::time::sleep`.
 
 Accurate sleeping. Only use native sleep as far as it can be trusted, then spin.
 
@@ -18,7 +19,7 @@ accuracy.
 The simplest usage with default native accuracy is a drop in replacement for `tokio::time::sleep`.
 
 ```rust
-spin_sleep::sleep(Duration::new(1, 12_550_000));
+spin_sleep_tokio::sleep(Duration::new(1, 12_550_000));
 ```
 
 #### Configure
@@ -28,8 +29,8 @@ constructing a `SpinSleeper`.
 
 ```rust
 // Create a new sleeper that trusts native thread::sleep with 100μs accuracy
-let spin_sleeper = spin_sleep::SpinSleeper::new(100_000)
-    .with_spin_strategy(spin_sleep::SpinStrategy::YieldThread);
+let spin_sleeper = spin_sleep_tokio::SpinSleeper::new(100_000)
+    .with_spin_strategy(spin_sleep_tokio::SpinStrategy::YieldThread);
 
 // Sleep for 1.01255 seconds, this will:
 //  - thread:sleep for 1.01245 seconds, i.e., 100μs less than the requested duration
@@ -57,7 +58,7 @@ For controlling & report rates (e.g., game FPS) this crate provides `LoopHelper`
 sleeping accuracy.
 
 ```rust
-use spin_sleep::LoopHelper;
+use spin_sleep_tokio::LoopHelper;
 
 let mut loop_helper = LoopHelper::builder()
     .report_interval_s(0.5) // report every half a second
@@ -82,7 +83,7 @@ loop {
 
 ### Windows Accuracy
 
-Windows has particularly poor accuracy by default (~15ms), `spin_sleep` will automatically
+Windows has particularly poor accuracy by default (~15ms), `spin_sleep_tokio` will automatically
 select the best accuracy on Windows generally achieving ~1ms native sleep accuracy _(Since 0.3.3)_.
 
 ## Minimum supported rust compiler
