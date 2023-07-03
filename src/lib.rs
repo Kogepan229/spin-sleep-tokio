@@ -104,8 +104,8 @@ const DEFAULT_NATIVE_SLEEP_ACCURACY: SubsecondNanoseconds = 125_000;
 /// native sleep accuracy, instead of default ~16ms.
 #[cfg(not(windows))]
 #[inline]
-pub fn native_sleep(duration: Duration) {
-    tokio::time::sleep(duration)
+pub async fn native_sleep(duration: Duration) {
+    tokio::time::sleep(duration).await
 }
 
 #[cfg(windows)]
