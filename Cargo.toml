@@ -1,13 +1,16 @@
 [package]
-name = "spin_sleep"
-version = "1.1.1"
-authors = ["Alex Butler <alexheretic@gmail.com>"]
-edition = "2018"
+name = "spin_sleep_tokio"
+version = "2.1.1"
+authors = ["Kogepan229 <kogepan25629@gmail.com>"]
+edition = "2021"
 description = "Accurate sleeping. Only use native sleep as far as it can be trusted, then spin."
-repository = "https://github.com/alexheretic/spin-sleep"
+repository = "https://github.com/Kogepan229/spin-sleep-tokio"
 keywords = ["sleep"]
 license = "Apache-2.0"
-readme="README.md"
+readme = "README.md"
+
+[dependencies]
+tokio = { version = "1.29.1", features = ["full"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["minwindef", "mmsystem", "timeapi"] }

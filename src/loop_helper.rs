@@ -1,3 +1,19 @@
+/*
+Copyright 2023 alexheretic
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 use super::*;
 use std::time::{Duration, Instant};
 
@@ -12,7 +28,7 @@ use std::time::{Duration, Instant};
 /// # Example
 ///
 /// ```no_run
-/// use spin_sleep::LoopHelper;
+/// use spin_sleep_tokio::LoopHelper;
 ///
 /// let mut loop_helper = LoopHelper::builder()
 ///     .report_interval_s(0.5) // report every half a second
@@ -139,10 +155,10 @@ impl LoopHelper {
     /// [`build_with_target_rate`](struct.LoopHelperBuilder.html#method.build_with_target_rate))
     /// has elapsed. Uses a [`SpinSleeper`](struct.SpinSleeper.html) to sleep the thread to provide
     /// improved accuracy. If the delta has already elapsed this method returns immediately.
-    pub fn loop_sleep(&mut self) {
+    pub async fn loop_sleep(&mut self) {
         let elapsed = self.last_loop_start.elapsed();
         if elapsed < self.target_delta {
-            self.sleeper.sleep(self.target_delta - elapsed);
+            self.sleeper.sleep(self.target_delta - elapsed).await;
         }
     }
 
@@ -151,10 +167,10 @@ impl LoopHelper {
     /// has elapsed. Does *not* use a  [`SpinSleeper`](struct.SpinSleeper.html), instead directly
     /// calls `thread::sleep` and will never spin. This is less accurate than
     /// [`loop_sleep`](struct.LoopHelper.html#method.loop_sleep) but less CPU intensive.
-    pub fn loop_sleep_no_spin(&mut self) {
+    pub async fn loop_sleep_no_spin(&mut self) {
         let elapsed = self.last_loop_start.elapsed();
         if elapsed < self.target_delta {
-            native_sleep(self.target_delta - elapsed);
+            native_sleep(self.target_delta - elapsed).await;
         }
     }
 
@@ -228,15 +244,15 @@ mod loop_helper_test {
         assert_relative_eq!(reported_rate, expected_rate, epsilon = 1e-9);
     }
 
-    #[test]
-    fn loop_sleep_already_past_target() {
+    #[tokio::test]
+    async fn loop_sleep_already_past_target() {
         let mut loop_helper = LoopHelper::builder()
             .report_interval_s(0.0)
             .build_with_target_rate(f64::INFINITY);
 
         loop_helper.loop_start();
 
-        loop_helper.loop_sleep(); // should not panic
+        loop_helper.loop_sleep().await; // should not panic
     }
 
     #[test]

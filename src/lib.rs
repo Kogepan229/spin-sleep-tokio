@@ -1,19 +1,39 @@
+/*
+Copyright 2023 alexheretic
+Copyright 2023 kogepan229
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+Change std::thread::sleep to tokio::time::sleep
+*/
+
 //! Accurate sleeping. Only use native sleep as far as it can be trusted, then spin.
 //!
-//! The problem with `thread::sleep` is it isn't always very accurate, and this accuracy varies
+//! The problem with `tokio::time::sleep` is it isn't always very accurate, and this accuracy varies
 //! on platform and state. Spinning is as accurate as we can get, but consumes the CPU
 //! rather ungracefully.
 //!
 //! This library adds a middle ground, using a configurable native accuracy setting allowing
-//! `thread::sleep` to wait the bulk of a sleep time, and spin the final section to guarantee
+//! `tokio::time::sleep` to wait the bulk of a sleep time, and spin the final section to guarantee
 //! accuracy.
 //!
-//! # Example: Replace `thread::sleep`
+//! # Example: Replace `tokio::time::sleep`
 //!
-//! The simplest usage with default native accuracy is a drop in replacement for `thread::sleep`.
+//! The simplest usage with default native accuracy is a drop in replacement for `tokio::time::sleep`.
 //! ```no_run
 //! # use std::time::Duration;
-//! spin_sleep::sleep(Duration::new(1, 12_550_000));
+//! spin_sleep_tokio::sleep(Duration::new(1, 12_550_000));
 //! ```
 //!
 //! # Example: Configure
@@ -21,9 +41,9 @@
 //! constructing a `SpinSleeper`.
 //! ```no_run
 //! # use std::time::Duration;
-//! // Create a new sleeper that trusts native thread::sleep with 100μs accuracy
-//! let spin_sleeper = spin_sleep::SpinSleeper::new(100_000)
-//!     .with_spin_strategy(spin_sleep::SpinStrategy::YieldThread);
+//! // Create a new sleeper that trusts native tokio::time::sleep with 100μs accuracy
+//! let spin_sleeper = spin_sleep_tokio::SpinSleeper::new(100_000)
+//!     .with_spin_strategy(spin_sleep_tokio::SpinStrategy::YieldThread);
 //!
 //! // Sleep for 1.01255 seconds, this will:
 //! //  - thread:sleep for 1.01245 seconds, i.e., 100μs less than the requested duration
@@ -36,14 +56,14 @@
 //!
 //! ```no_run
 //! # use std::time::Duration;
-//! # let spin_sleeper = spin_sleep::SpinSleeper::new(100_000);
+//! # let spin_sleeper = spin_sleep_tokio::SpinSleeper::new(100_000);
 //! spin_sleeper.sleep_s(1.01255);
 //! spin_sleeper.sleep_ns(1_012_550_000);
 //! ```
 //!
 //! OS-specific default settings should be good enough for most cases.
 //! ```
-//! # use spin_sleep::SpinSleeper;
+//! # use spin_sleep_tokio::SpinSleeper;
 //! let sleeper = SpinSleeper::default();
 //! # let _ = sleeper;
 //! ```
@@ -54,6 +74,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+// use tokio::time;
 
 /// Marker alias to show the meaning of a `f64` in certain methods.
 pub type Seconds = f64;
@@ -77,13 +99,13 @@ const DEFAULT_NATIVE_SLEEP_ACCURACY: SubsecondNanoseconds = 125_000;
 /// Asks the OS to put the current thread to sleep for at least the specified amount of time.
 /// **Does not spin.**
 ///
-/// Equivalent to [`std::thread::sleep`], with the following exceptions:
+/// Equivalent to [`tokio::time::sleep`], with the following exceptions:
 /// * **Windows**: Automatically selects the best native sleep accuracy generally achieving ~1ms
 /// native sleep accuracy, instead of default ~16ms.
 #[cfg(not(windows))]
 #[inline]
 pub fn native_sleep(duration: Duration) {
-    thread::sleep(duration)
+    tokio::time::sleep(duration)
 }
 
 #[cfg(windows)]
@@ -107,16 +129,16 @@ static MIN_TIME_PERIOD: once_cell::sync::Lazy<winapi::shared::minwindef::UINT> =
 
 /// Asks the OS to put the current thread to sleep for at least the specified amount of time.
 ///
-/// Equivalent to [`std::thread::sleep`], with the following exceptions:
+/// Equivalent to [`tokio::time::sleep`], with the following exceptions:
 /// * **Windows**: Automatically selects the best native sleep accuracy generally achieving ~1ms
 /// native sleep accuracy, instead of default ~16ms.
 #[cfg(windows)]
 #[inline]
-pub fn native_sleep(duration: Duration) {
+pub async fn native_sleep(duration: Duration) {
     unsafe {
         use winapi::um::timeapi::{timeBeginPeriod, timeEndPeriod};
         timeBeginPeriod(*MIN_TIME_PERIOD);
-        thread::sleep(duration);
+        tokio::time::sleep(duration).await;
         timeEndPeriod(*MIN_TIME_PERIOD);
     }
 }
@@ -160,7 +182,7 @@ impl SpinSleeper {
     ///
     /// # Example
     /// ```no_run
-    /// use spin_sleep::{SpinSleeper, SpinStrategy};
+    /// use spin_sleep_tokio::{SpinSleeper, SpinStrategy};
     ///
     /// let sleeper = SpinSleeper::default().with_spin_strategy(SpinStrategy::SpinLoopHint);
     /// ```
@@ -171,11 +193,11 @@ impl SpinSleeper {
 
     /// Puts the [current thread to sleep](fn.native_sleep.html) for the duration less the
     /// configured native accuracy. Then spins until the specified duration has elapsed.
-    pub fn sleep(self, duration: Duration) {
+    pub async fn sleep(self, duration: Duration) {
         let start = Instant::now();
         let accuracy = Duration::new(0, self.native_accuracy_ns);
         if duration > accuracy {
-            native_sleep(duration - accuracy);
+            native_sleep(duration - accuracy).await;
         }
         // spin the rest of the duration
         while start.elapsed() < duration {
@@ -188,18 +210,18 @@ impl SpinSleeper {
 
     /// Puts the [current thread to sleep](fn.native_sleep.html) for the give seconds-duration
     /// less the configured native accuracy. Then spins until the specified duration has elapsed.
-    pub fn sleep_s(self, seconds: Seconds) {
+    pub async fn sleep_s(self, seconds: Seconds) {
         if seconds > 0.0 {
-            self.sleep(Duration::from_secs_f64(seconds));
+            self.sleep(Duration::from_secs_f64(seconds)).await;
         }
     }
 
     /// Puts the [current thread to sleep](fn.native_sleep.html) for the give nanoseconds-duration
     /// less the configured native accuracy. Then spins until the specified duration has elapsed.
-    pub fn sleep_ns(self, nanoseconds: Nanoseconds) {
+    pub async fn sleep_ns(self, nanoseconds: Nanoseconds) {
         let subsec_ns = (nanoseconds % 1_000_000_000) as u32;
         let seconds = nanoseconds / 1_000_000_000;
-        self.sleep(Duration::new(seconds, subsec_ns))
+        self.sleep(Duration::new(seconds, subsec_ns)).await
     }
 }
 
@@ -207,9 +229,9 @@ impl SpinSleeper {
 /// default native accuracy. Then spins until the specified duration has elapsed.
 ///
 /// Convenience function for `SpinSleeper::default().sleep(duration)`. Can directly take the
-/// place of `thread::sleep`.
-pub fn sleep(duration: Duration) {
-    SpinSleeper::default().sleep(duration);
+/// place of `tokio::time::sleep`.
+pub async fn sleep(duration: Duration) {
+    SpinSleeper::default().sleep(duration).await;
 }
 
 /// What to do while spinning.
@@ -242,7 +264,7 @@ impl Default for SpinStrategy {
 // Travis does not do well with these tests, as they require a certain CPU priority.
 #[cfg(feature = "nondeterministic_tests")]
 #[cfg(test)]
-mod spin_sleep_test {
+mod spin_sleep_tokio_test {
     use super::*;
 
     // The worst case error is unbounded even when spinning, but this accuracy is reasonable
@@ -260,7 +282,7 @@ mod spin_sleep_test {
                     Err(err) => {
                         // test is failing, maybe due to spin unreliability
                         error = error.or(Some(err));
-                        thread::sleep(Duration::new(0, 1000));
+                        tokio::time::sleep(Duration::new(0, 1000));
                     }
                 }
             }

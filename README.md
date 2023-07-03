@@ -1,11 +1,11 @@
-spin_sleep
-[![crates.io](https://img.shields.io/crates/v/spin_sleep.svg)](https://crates.io/crates/spin_sleep)
-[![Documentation](https://docs.rs/spin_sleep/badge.svg)](https://docs.rs/spin_sleep)
-==========
+# spin_sleep_tokio
+
+This is a fork of spin_sleep.
+`std::thread::sleep` replaced by `tokio::time::sleep`
 
 Accurate sleeping. Only use native sleep as far as it can be trusted, then spin.
 
-The problem with `thread::sleep` is it isn't always very accurate, and this accuracy varies
+The problem with `tokio:time::sleep` is it isn't always very accurate, and this accuracy varies
 on platform and state. Spinning is as accurate as we can get, but consumes the CPU
 rather ungracefully.
 
@@ -14,14 +14,18 @@ thread::sleep to wait the bulk of a sleep time, and spin the final section to gu
 accuracy.
 
 ### SpinSleeper
-The simplest usage with default native accuracy is a drop in replacement for `thread::sleep`.
+
+The simplest usage with default native accuracy is a drop in replacement for `tokio::time::sleep`.
+
 ```rust
 spin_sleep::sleep(Duration::new(1, 12_550_000));
 ```
 
 #### Configure
+
 More advanced usage, including setting a custom native accuracy, can be achieved by
 constructing a `SpinSleeper`.
+
 ```rust
 // Create a new sleeper that trusts native thread::sleep with 100μs accuracy
 let spin_sleeper = spin_sleep::SpinSleeper::new(100_000)
@@ -42,11 +46,13 @@ spin_sleeper.sleep_ns(1_012_550_000);
 ```
 
 OS-specific default settings should be good enough for most cases.
+
 ```rust
 let sleeper = SpinSleeper::default();
 ```
 
 ### LoopHelper
+
 For controlling & report rates (e.g., game FPS) this crate provides `LoopHelper`. A `SpinSleeper` is used to maximise
 sleeping accuracy.
 
@@ -75,8 +81,10 @@ loop {
 ```
 
 ### Windows Accuracy
+
 Windows has particularly poor accuracy by default (~15ms), `spin_sleep` will automatically
-select the best accuracy on Windows generally achieving ~1ms native sleep accuracy *(Since 0.3.3)*.
+select the best accuracy on Windows generally achieving ~1ms native sleep accuracy _(Since 0.3.3)_.
 
 ## Minimum supported rust compiler
+
 This crate is maintained with [latest stable rust](https://gist.github.com/alexheretic/d1e98d8433b602e57f5d0a9637927e0c).
